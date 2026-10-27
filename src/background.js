@@ -231,6 +231,7 @@ async function sendToOffscreen(message) {
 async function createDownloadTask(request) {
   await bootstrapPromise;
   const data = request.data || {};
+  if (data.audioOnly && (!data.audioUrl || data.audioUrl === data.streamUrl)) throw new Error('仅音频下载需要独立音轨');
   const detectedVideo = (videoInfo.get(request.tabId) || []).find((video) => video.baseUrl === data.masterUrl);
   const detectedStream = detectedVideo?.streams.find((stream) => stream.url === data.streamUrl);
   // Let selected streams enter the worker, which validates the current manifest.
@@ -256,7 +257,7 @@ async function createDownloadTask(request) {
   const now = Date.now();
   const bandwidth = Number(data.bandwidth) || null;
   const duration = Number(data.duration) || null;
-  const estimatedBytes = estimateMediaBytes(bandwidth, duration);
+  const estimatedBytes = data.audioOnly ? null : estimateMediaBytes(bandwidth, duration);
   const sourceId = createSourceId(data.masterUrl, data.streamUrl);
   const duplicate = [...tasks.values()].find((task) => (
     task.tabId === request.tabId
@@ -296,7 +297,8 @@ async function createDownloadTask(request) {
     audioUrl: data.audioUrl || null,
     hasExternalAudio: Boolean(data.hasExternalAudio),
     sessionKeys: Array.isArray(data.sessionKeys) ? data.sessionKeys : [],
-    requestedFormat: 'mp4',
+    audioOnly: Boolean(data.audioOnly),
+    requestedFormat: data.audioOnly ? 'm4a' : 'mp4',
     actualFormat: null,
     phase: TaskPhase.QUEUED,
     downloadedBytes: 0,
@@ -367,7 +369,7 @@ async function beginBrowserDownload(taskId, fileReady) {
     progress: 98,
     message: fileReady.actualFormat === 'ts'
       ? 'MP4 封装失败，正在保存原始 TS…'
-      : '正在保存 MP4…',
+      : fileReady.actualFormat === 'm4a' ? '正在保存 M4A…' : '正在保存 MP4…',
     objectUrl: fileReady.objectUrl,
     tempName: fileReady.tempName,
     fallbackReason: fileReady.fallbackReason || task.fallbackReason,
@@ -524,7 +526,7 @@ async function finishTask(taskId) {
     phase: TaskPhase.COMPLETED,
     progress: 100,
     speed: 0,
-    message: task.actualFormat === 'ts' ? '原始 TS 下载完成' : 'MP4 下载完成',
+    message: task.actualFormat === 'ts' ? '原始 TS 下载完成' : task.actualFormat === 'm4a' ? 'M4A 下载完成' : 'MP4 下载完成',
     completedAt,
     totalTime: elapsedSeconds,
     avgSpeed: task.downloadedBytes / elapsedSeconds,
