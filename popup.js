@@ -236,7 +236,7 @@ async function cancelTask(taskId, button) {
 function syncVideoButtons() {
   document.querySelectorAll('[data-source-id]').forEach((button) => {
     button.disabled = Boolean(getSourceTask(button.dataset.sourceId))
-      || (button.dataset.audioOnly === 'true' && button.dataset.audioAvailable !== 'true');
+
     if (button.dataset.audioOnly !== 'true') button.textContent = message('downloadButton', null, '下载');
   });
 }
@@ -315,8 +315,8 @@ function createVideoItem(video, videoIndex, renderedTaskIds) {
     audioButton.dataset.audioAvailable = String(Boolean(stream.audioUrl && stream.audioUrl !== stream.url));
     audioButton.textContent = '仅音频 M4A';
     const separateAudio = Boolean(stream.audioUrl && stream.audioUrl !== stream.url);
-    audioButton.disabled = !separateAudio || Boolean(getSourceTask(sourceId));
-    audioButton.title = separateAudio ? '只下载独立音轨，不下载视频片段' : '此画质没有可用的独立音轨';
+    audioButton.disabled = Boolean(getSourceTask(sourceId));
+    audioButton.title = separateAudio ? '只下载独立音轨，不下载视频片段' : '从混合音视频流中提取音频（可能需要下载视频分片）';
     audioButton.addEventListener('click', () => startDownload(video, stream, sourceId, audioButton, true));
     row.append(info, button, audioButton);
     shell.appendChild(row);
