@@ -14,9 +14,7 @@ import { openDashInputs } from './dash-input.js';
  * Combined A/V streams are deliberately unsupported in this mode.
  */
 export async function remuxAudioOnly(task, reporter, context) {
-  if (!task.audioUrl || task.audioUrl === task.streamUrl) {
-    throw new SourceError('来源没有独立音轨，无法仅下载音频', 'NO_SEPARATE_AUDIO');
-  }
+
   const temp = await createTempFile(task.taskId, 'm4a');
   const trackedFetch = createTrackedFetch(reporter, context.controller);
   let input = null;
@@ -25,13 +23,13 @@ export async function remuxAudioOnly(task, reporter, context) {
     let duration = task.duration || null;
     if (task.sourceType === 'dash') {
       const dash = await openDashInputs(task, trackedFetch, context);
-      input = dash.audioInput;
-      timestampOffset = dash.audioTimestampOffset || 0;
+      input = dash.audioInput || dash.input;
+      timestampOffset = dash.audioInput ? dash.audioTimestampOffset || 0 : dash.videoTimestampOffset || 0;
       duration = dash.duration || duration;
     } else {
       input = new Input({
         formats: HLS_FORMATS,
-        source: new UrlSource(task.audioUrl, {
+        source: new UrlSource(task.audioUrl && task.audioUrl !== task.streamUrl ? task.audioUrl : task.masterUrl, {
           requestInit: { credentials: 'include' },
           parallelism: FETCH_PARALLELISM,
           maxCacheSize: SOURCE_CACHE_SIZE,
@@ -43,7 +41,7 @@ export async function remuxAudioOnly(task, reporter, context) {
     if (!input || !(await input.canRead())) throw new SourceError('无法读取独立音轨', 'UNREADABLE_AUDIO');
     context.audioInput = input;
     const audioTracks = await input.getAudioTracks();
-    if (audioTracks.length !== 1) throw new SourceError('独立音轨数量异常', 'INVALID_AUDIO_TRACK');
+    if (!audioTracks.length) throw new SourceError('媒体来源中没有音频轨道', 'NO_AUDIO_TRACK');
     const track = audioTracks[0];
     if (await track.isLive()) throw new SourceError('仅支持 VOD 音频', 'LIVE_UNSUPPORTED');
     const codec = await track.getCodec();
