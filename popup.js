@@ -235,8 +235,9 @@ async function cancelTask(taskId, button) {
 
 function syncVideoButtons() {
   document.querySelectorAll('[data-source-id]').forEach((button) => {
-    button.disabled = Boolean(getSourceTask(button.dataset.sourceId));
-    button.textContent = message('downloadButton', null, '下载');
+    button.disabled = Boolean(getSourceTask(button.dataset.sourceId))
+      || (button.dataset.audioOnly === 'true' && button.dataset.audioAvailable !== 'true');
+    if (button.dataset.audioOnly !== 'true') button.textContent = message('downloadButton', null, '下载');
   });
 }
 
@@ -307,7 +308,17 @@ function createVideoItem(video, videoIndex, renderedTaskIds) {
     button.textContent = message('downloadButton', null, '下载');
     button.disabled = Boolean(getSourceTask(sourceId));
     button.addEventListener('click', () => startDownload(video, stream, sourceId, button));
-    row.append(info, button);
+    const audioButton = document.createElement('button');
+    audioButton.className = 'download-btn';
+    audioButton.dataset.sourceId = sourceId;
+    audioButton.dataset.audioOnly = 'true';
+    audioButton.dataset.audioAvailable = String(Boolean(stream.audioUrl && stream.audioUrl !== stream.url));
+    audioButton.textContent = '仅音频 M4A';
+    const separateAudio = Boolean(stream.audioUrl && stream.audioUrl !== stream.url);
+    audioButton.disabled = !separateAudio || Boolean(getSourceTask(sourceId));
+    audioButton.title = separateAudio ? '只下载独立音轨，不下载视频片段' : '此画质没有可用的独立音轨';
+    audioButton.addEventListener('click', () => startDownload(video, stream, sourceId, audioButton, true));
+    row.append(info, button, audioButton);
     shell.appendChild(row);
 
     const task = getSourceTask(sourceId);
@@ -338,7 +349,7 @@ function createDetachedTaskItem(task) {
   return item;
 }
 
-async function startDownload(video, stream, sourceId, button) {
+async function startDownload(video, stream, sourceId, button, audioOnly = false) {
   button.disabled = true;
   const pageInfo = await chrome.tabs.sendMessage(currentTabId, {
     type: MessageType.GET_PAGE_VIDEO_TITLE,
@@ -353,6 +364,7 @@ async function startDownload(video, stream, sourceId, button) {
     sourceId,
     data: {
       sourceType: video.sourceType || 'hls',
+      audioOnly,
       representationId: stream.representationId || null,
       audioRepresentationId: stream.audioRepresentationId || null,
       masterUrl: video.baseUrl,
