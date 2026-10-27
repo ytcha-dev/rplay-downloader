@@ -56,7 +56,7 @@ export async function openDashInputs(task, fetchFn, context) {
   }
   const playlists = new Map();
   const playlistUrl = (type) => `${VIRTUAL_ORIGIN}/${encodeURIComponent(task.taskId)}/${type}.m3u8`;
-  if (stream.videoSegments) playlists.set(playlistUrl('video'), segmentedPlaylist(stream.videoSegments));
+  if (!task.audioOnly && stream.videoSegments) playlists.set(playlistUrl('video'), segmentedPlaylist(stream.videoSegments));
   if (stream.audioSegments) playlists.set(playlistUrl('audio'), segmentedPlaylist(stream.audioSegments));
   let mediaFetch = fetchFn;
   if (playlists.size) {
@@ -119,7 +119,7 @@ export async function openDashInputs(task, fetchFn, context) {
   let audioTimestampOffset;
   try {
     [videoTimestampOffset, audioTimestampOffset] = await Promise.all([
-      originalTimestampOffset(stream.videoSegments), originalTimestampOffset(stream.audioSegments),
+      task.audioOnly ? 0 : originalTimestampOffset(stream.videoSegments), originalTimestampOffset(stream.audioSegments),
     ]);
   } catch (error) {
     // A failure in one track must abort the sibling probe too; initialization
@@ -132,7 +132,7 @@ export async function openDashInputs(task, fetchFn, context) {
   } finally {
     probeController.abort();
   }
-  context.input = createInput(stream.videoSegments ? playlistUrl('video') : stream.url, Boolean(stream.videoSegments));
+  if (!task.audioOnly) context.input = createInput(stream.videoSegments ? playlistUrl('video') : stream.url, Boolean(stream.videoSegments));
   if (stream.audioUrl && stream.audioUrl !== stream.url) {
     context.audioInput = createInput(stream.audioSegments ? playlistUrl('audio') : stream.audioUrl, Boolean(stream.audioSegments));
   }
