@@ -231,7 +231,7 @@ async function sendToOffscreen(message) {
 async function createDownloadTask(request) {
   await bootstrapPromise;
   const data = request.data || {};
-  if (data.audioOnly && (!data.audioUrl || data.audioUrl === data.streamUrl)) throw new Error('仅音频下载需要独立音轨');
+
   const detectedVideo = (videoInfo.get(request.tabId) || []).find((video) => video.baseUrl === data.masterUrl);
   const detectedStream = detectedVideo?.streams.find((stream) => stream.url === data.streamUrl);
   // Let selected streams enter the worker, which validates the current manifest.
