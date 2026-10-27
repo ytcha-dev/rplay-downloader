@@ -5,6 +5,7 @@ import {
 } from './errors.js';
 import { abortDownloadContext } from './download-session.js';
 import { remuxToMp4 } from './mp4-remux.js';
+import { remuxAudioOnly } from './audio-remux.js';
 import { makeDownloadFilename } from './naming.js';
 import { cleanupStaleFiles, removeTempFile } from './opfs.js';
 import {
@@ -38,7 +39,7 @@ async function exposeReadyFile(task, temp, actualFormat, fallbackReason, context
     return;
   }
 
-  const mimeType = actualFormat === 'mp4' ? 'video/mp4' : 'video/mp2t';
+  const mimeType = actualFormat === 'm4a' ? 'audio/mp4' : actualFormat === 'mp4' ? 'video/mp4' : 'video/mp2t';
   const filename = makeDownloadFilename(task, actualFormat);
   const namedFile = new File([file], filename, {
     type: mimeType,
@@ -83,13 +84,13 @@ async function executeTask(task) {
 
   try {
     let temp;
-    let actualFormat = 'mp4';
+    let actualFormat = task.audioOnly ? 'm4a' : 'mp4';
     let fallbackReason = null;
     try {
-      temp = await remuxToMp4(task, reporter, context);
+      temp = task.audioOnly ? await remuxAudioOnly(task, reporter, context) : await remuxToMp4(task, reporter, context);
     } catch (error) {
       if (isAbortError(error) || context.controller.signal.aborted) throw new TaskCanceledError();
-      if (task.sourceType === 'dash' || !shouldFallbackToTs(error)) throw error;
+      if (task.audioOnly || task.sourceType === 'dash' || !shouldFallbackToTs(error)) throw error;
       fallbackReason = error?.message || 'MP4 换封装不兼容';
       actualFormat = 'ts';
       try {
@@ -101,7 +102,7 @@ async function executeTask(task) {
 
     reporter.setPhase(
       TaskPhase.SAVING,
-      actualFormat === 'mp4' ? 'MP4 已生成，等待保存…' : 'TS 回退已完成，等待保存…',
+      actualFormat === 'm4a' ? 'M4A 已生成，等待保存…' : actualFormat === 'mp4' ? 'MP4 已生成，等待保存…' : 'TS 回退已完成，等待保存…',
       { actualFormat, fallbackReason },
     );
     await exposeReadyFile(task, temp, actualFormat, fallbackReason, context, await loadSettings());

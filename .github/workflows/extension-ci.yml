@@ -1,0 +1,67 @@
+name: Validate and package extension
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/audio-only-m4a
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, test, build, package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Static checks, unit tests and browser bundle
+        run: pnpm check
+
+      - name: Assemble unpacked Chrome extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p extension/dist extension/_locales
+          cp manifest.json popup.html offscreen.html options.html extension/
+          cp icon16.png icon48.png icon128.png extension/
+          cp dist/background.js dist/content.js dist/offscreen.js dist/options.js dist/popup.js extension/dist/
+          cp -R _locales/. extension/_locales/
+          test -s extension/dist/offscreen.js
+          test -s extension/dist/popup.js
+          test -s extension/manifest.json
+          # The source repository contains a bundled DRM device. Do NOT redistribute
+          # that potentially sensitive binary in CI artifacts.
+          test ! -e extension/private/device.wvd
+
+      - name: Upload extension for manual inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: rplay-extension-${{ github.sha }}
+          path: extension/
+          if-no-files-found: error
+          retention-days: 7
